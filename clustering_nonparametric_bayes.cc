@@ -14,13 +14,63 @@ ProbDistributions pd;
 class Cluster
 {
 public:
-	vector<double> mean;
+	vector<double> mean; //XXX: This should be Eigen::Vector2d
+	Eigen::MatrixXd cov;
+	vector<Data *> data;
+
+	Cluster()
+	{
+		mean.push_back(pd.uniformRand(0.0,1.0));
+		mean.push_back(pd.uniformRand(0.0,1.0));
+		cov = Eigen::MatrixXd(2,2);
+	}
+
+	void clear(void)
+	{
+		data.clear();
+	}
+
+	void regData(Data *d)
+	{
+		data.push_back(d);
+	}
+
+	void calcParams(void)
+	{
+		if(data.size() == 0)
+			return;
+
+		mean.clear();
+		mean.push_back(0.0);
+		mean.push_back(0.0);
+		for(int j=0;j<2;j++){
+			for(int i=0;i<data.size();i++){
+				mean[j] += data[i]->original_data[j];
+			}
+			mean[j] /= data.size();
+		}
+	}
+
+	void print(void)
+	{
+		if(data.size() == 0)
+			return;
+
+		cout << mean[0] << ' ' << mean[1] << endl;
+	}
 };
 
 class Clusters
 {
 public:
 	vector<Cluster> c;
+	void calcParams(void)
+	{
+		for(auto &e : c){
+			e.calcParams();
+			e.print();
+		}
+	}
 };
 
 int pickCandidateCluster(vector<int> &bincount,double d = 0.0)
@@ -44,15 +94,6 @@ int pickCandidateCluster(vector<int> &bincount,double d = 0.0)
 	}
 
 	return candidate_cluster;
-}
-
-Cluster getNewCluster(void)
-{
-	//double g0_variance = 4.0;
-	Cluster c;
-	c.mean.push_back(pd.uniformRand(0.0,1.0));
-	c.mean.push_back(pd.uniformRand(0.0,1.0));
-	return c;
 }
 
 double logDensityMultiNormal(Data &d, Cluster &c, Eigen::MatrixXd &cov)
@@ -96,10 +137,8 @@ void resampling(DataSet *ds, Clusters *cs, Data *d)
 	double log_old = logDensityMultiNormal(*d,*old_cluster,cov);
 	Cluster c;
 	if(candidate_cluster == (int)cs->c.size()){//新しいクラスタ
-		c = getNewCluster();
 		log_new = logDensityMultiNormal(*d,c,cov);
 	}else{//既存のクラスタ
-		//c = cs->c[candidate_cluster];
 		log_new = logDensityMultiNormal(*d,cs->c[candidate_cluster],cov);
 	}
 
@@ -126,32 +165,34 @@ void sweep(DataSet *ds,Clusters *cs)
 
 int main(int argc, char const* argv[])
 {
-
 	Clusters cs;
 
 	DataSet ds;
 	ds.read();
 
-	int sweep_num = 1;
+	int sweep_num = 3;
 	int chance = 3;
 
 	//最初のクラスタを作る。平均値は1軸ごとにガウス分布からサンプリング
-	cs.c.push_back(getNewCluster());
+	cs.c.push_back(Cluster());
 
 	for(int k=0;k<sweep_num;k++){
+		cout << "sweep " << k << endl;
 		for(int j=0;j<chance;j++){
 			sweep(&ds,&cs);
 		}
 
 		//どのクラスタに標本が幾つかる数える
-		vector<int> bincount(cs.c.size(),0);
-		for(auto d : ds.x){
-			if(!d.target)	
-				bincount[d.cluster_id]++;
+		for(auto &c : cs.c){
+			c.clear();
 		}
-		for(auto b : bincount){
-			cout << b << endl;
+		for(auto &d : ds.x){
+			cs.c[d.cluster_id].regData(&d);
 		}
+		cout << "%%" << endl;
+		cs.calcParams();
+		cout << "----" << endl;
+		//ds.print();
 	}
 	
 	exit(0);

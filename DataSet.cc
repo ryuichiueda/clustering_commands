@@ -48,6 +48,5 @@ bool DataSet::read(void)
 			d.normalized_data.push_back((d.original_data[i]-min)/(max - min));
 		}
 	}
-
 	return true;
 }

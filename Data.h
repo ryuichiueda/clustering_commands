@@ -23,7 +23,9 @@ public:
 	{
 		for(auto e : original_data)
 			cout << e << ' ';
-		cout << endl;
+		for(auto e : normalized_data)
+			cout << e << ' ';
+		cout << cluster_id << endl;
 	}
 };
 
