@@ -4,6 +4,7 @@
 #include <Eigen/Core>
 #include <Eigen/LU>
 #include <iostream>
+#include <algorithm>
 #include <iomanip>
 #include <vector>
 #include <cmath>
@@ -98,6 +99,15 @@ public:
 			e.calcParams();
 			e.print();
 		}
+	}
+
+	void remove(void)
+	{
+        	auto itrNewEnd = std::remove_if(c.begin(),c.end()
+                                ,[](Cluster e)->bool
+                                 { return e.data.size() == 0; });
+
+        	c.erase(itrNewEnd,c.end());
 	}
 };
 

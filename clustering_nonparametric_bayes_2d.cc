@@ -12,95 +12,6 @@
 #include "Cluster.h"
 using namespace std;
 
-/*
-ProbDistributions pd;
-
-class Cluster
-{
-public:
-	vector<double> mean; //XXX: This should be Eigen::Vector2d
-	Eigen::MatrixXd cov;
-	vector<Data *> data;
-
-	Cluster()
-	{
-		mean.push_back(pd.uniformRand(0.0,1.0));
-		mean.push_back(pd.uniformRand(0.0,1.0));
-		cov = Eigen::MatrixXd(2,2);
-		cov << 0.5, 0.0, 0.0, 0.5;
-	}
-
-	void clear(void)
-	{
-		data.clear();
-	}
-
-	void regData(Data *d)
-	{
-		data.push_back(d);
-	}
-
-	void calcParams(void)
-	{
-		if(data.size() == 0)
-			return;
-
-		mean[0] = 0.0;
-		mean[1] = 0.0;
-		for(int j=0;j<2;j++){
-			for(auto d : data){
-				mean[j] += d->normalized_data[j];
-			}
-			mean[j] /= data.size();
-		}
-
-#if 0
-		for(int j=0;j<2;j++){
-			double sum = 0.0;
-			for(int i=0;i<data.size();i++){
-				double d = data[i]->normalized_data[j] - mean[j];
-				sum += d*d;
-			}
-			if(j==0){
-				cov(0,0) = sqrt(sum/data.size());
-				if(cov(0,0) < 0.01)
-					cov(0,0) = 0.01;
-			}else{
-				cov(1,1) = sqrt(sum/data.size());
-				if(cov(1,1) < 0.01)
-					cov(1,1) = 0.01;
-			}
-		}
-#endif
-		cov(0,0) = 0.02;
-		cov(1,1) = 0.02;
-	}
-
-	void print(void)
-	{
-		if(data.size() == 0)
-			return;
-
-		cerr << setprecision(2);
-		cerr << mean[0] << ',' << mean[1] << " cov: " << cov(0,0) << ',' << cov(1,1)
-		<< " num: " << data.size() << endl;
-	}
-};
-
-class Clusters
-{
-public:
-	vector<Cluster> c;
-	void calcParams(void)
-	{
-		for(auto &e : c){
-			e.calcParams();
-			e.print();
-		}
-	}
-};
-*/
-
 int pickCandidateCluster(vector<int> &bincount,double d = 0.0)
 {
 	vector<double> prob_list;
@@ -140,6 +51,7 @@ double densityMultiNormal(Data &d, Cluster &c)
 
 bool resampling(DataSet *ds, Clusters *cs, Data *d)
 {
+	int org_c_num = (int)cs->c.size();
 	d->target = true;
 	//どのクラスタに標本が幾つかる数える
 	vector<int> bincount(cs->c.size(),0);
@@ -148,7 +60,7 @@ bool resampling(DataSet *ds, Clusters *cs, Data *d)
 			bincount[x.cluster_id]++;
 	}
 	d->target = false;
-
+	
 	int candidate_cluster = pickCandidateCluster(bincount);
 	if(candidate_cluster == d->cluster_id)
 		return false;
@@ -157,52 +69,45 @@ bool resampling(DataSet *ds, Clusters *cs, Data *d)
 	double eval_new = 0.0;
 	double eval_old = densityMultiNormal(*d,*old_cluster);
 	Cluster c;
-	if(candidate_cluster == (int)cs->c.size()){//新しいクラスタ
+	if(candidate_cluster == org_c_num){//新しいクラスタ
 		eval_new = densityMultiNormal(*d,c);
 	}else{//既存のクラスタ
 		eval_new = densityMultiNormal(*d,cs->c[candidate_cluster]);
-/*
-		if(cs->c[d->cluster_id].data.size() == 1){
-			cout << "old";
-			cs->c[d->cluster_id].print();
-			cout << "new";
-			cs->c[candidate_cluster].print();
-		}
-*/
 	}
 
 	double acceptance = eval_new/eval_old;
-/*
-	if(cs->c[d->cluster_id].data.size() == 1)
-		cout << eval_old << " " << eval_new << " " << acceptance << endl;
-*/
 	if(pd.uniformRand(0.0,1.0) >= acceptance)
 		return false;
 
 	d->cluster_id = candidate_cluster;
-	if(candidate_cluster == (int)cs->c.size()){
-		c.mean.clear();
-		for(auto e : d->normalized_data)
-			c.mean.push_back(e);
+	if(candidate_cluster == org_c_num){
 		cs->c.push_back(c);
 	}
-	return false;
+	return true;
 }
 
 void sweep(DataSet *ds,Clusters *cs)
 {
 	int chance = 3;
 	for(auto &target : ds->x){
-		for(int i=0;i<chance;i++)
-			if(resampling(ds,cs,&target))
-				break;
+		for(int i=0;i<chance;i++){
+			resampling(ds,cs,&target);
+		}
 	}
+	//どのクラスタに標本が幾つかる数える
+	for(auto &c : cs->c){
+		c.clear();
+	}
+	for(auto &d : ds->x){
+		cs->c[d.cluster_id].regData(&d);
+	}
+	cs->calcParams();
+	cerr << "----" << endl;
 }
 
 int main(int argc, char const* argv[])
 {
 	Clusters cs;
-
 	DataSet ds;
 	ds.read();
 
@@ -219,16 +124,6 @@ int main(int argc, char const* argv[])
 	for(int k=0;k<sweep_num;k++){
 		cerr << "sweep " << k << endl;
 		sweep(&ds,&cs);
-
-		//どのクラスタに標本が幾つかる数える
-		for(auto &c : cs.c){
-			c.clear();
-		}
-		for(auto &d : ds.x){
-			cs.c[d.cluster_id].regData(&d);
-		}
-		cs.calcParams();
-		cerr << "----" << endl;
 	}
 	ds.print();
 	
