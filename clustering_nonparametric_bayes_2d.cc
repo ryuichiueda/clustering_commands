@@ -9,8 +9,10 @@
 #include <random>
 #include "ProbDistributions.h"
 #include "DataSet.h"
+#include "Cluster.h"
 using namespace std;
 
+/*
 ProbDistributions pd;
 
 class Cluster
@@ -97,6 +99,7 @@ public:
 		}
 	}
 };
+*/
 
 int pickCandidateCluster(vector<int> &bincount,double d = 0.0)
 {

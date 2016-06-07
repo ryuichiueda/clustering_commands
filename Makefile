@@ -1,5 +1,5 @@
 CXX = g++
-TARGET = clustering_nonparametric_bayes
+TARGET = clustering_nonparametric_bayes_2d
 CXXFLAGS = -Wall -O3 --std=c++11 -I/usr/local/include/eigen3/
 LDFLAGS = -lm 
 SRCS := $(wildcard *.cc)
