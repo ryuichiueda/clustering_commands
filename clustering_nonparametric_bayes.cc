@@ -43,16 +43,16 @@ public:
 		if(data.size() == 0)
 			return;
 
-		mean.clear();
-		mean.push_back(0.0);
-		mean.push_back(0.0);
+		mean[0] = 0.0;
+		mean[1] = 0.0;
 		for(int j=0;j<2;j++){
-			for(int i=0;i<data.size();i++){
-				mean[j] += data[i]->normalized_data[j];
+			for(auto d : data){
+				mean[j] += d->normalized_data[j];
 			}
 			mean[j] /= data.size();
 		}
 
+#if 0
 		for(int j=0;j<2;j++){
 			double sum = 0.0;
 			for(int i=0;i<data.size();i++){
@@ -68,9 +68,10 @@ public:
 				if(cov(1,1) < 0.01)
 					cov(1,1) = 0.01;
 			}
-			cov(0,0) = 0.02;
-			cov(1,1) = 0.02;
 		}
+#endif
+		cov(0,0) = 0.02;
+		cov(1,1) = 0.02;
 	}
 
 	void print(void)
@@ -78,8 +79,8 @@ public:
 		if(data.size() == 0)
 			return;
 
-		cout << setprecision(2);
-		cout << mean[0] << ',' << mean[1] << " cov: " << cov(0,0) << ',' << cov(1,1)
+		cerr << setprecision(2);
+		cerr << mean[0] << ',' << mean[1] << " cov: " << cov(0,0) << ',' << cov(1,1)
 		<< " num: " << data.size() << endl;
 	}
 };
@@ -210,10 +211,10 @@ int main(int argc, char const* argv[])
 		cs.c[d.cluster_id].regData(&d);
 	}
 	cs.calcParams();
-	cout << "----" << endl;
+	cerr << "----" << endl;
 
 	for(int k=0;k<sweep_num;k++){
-		cout << "sweep " << k << endl;
+		cerr << "sweep " << k << endl;
 		sweep(&ds,&cs);
 
 		//どのクラスタに標本が幾つかる数える
@@ -224,8 +225,9 @@ int main(int argc, char const* argv[])
 			cs.c[d.cluster_id].regData(&d);
 		}
 		cs.calcParams();
-		cout << "----" << endl;
+		cerr << "----" << endl;
 	}
+	ds.print();
 	
 	exit(0);
 }
