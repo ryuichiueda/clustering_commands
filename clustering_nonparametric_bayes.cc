@@ -60,12 +60,12 @@ public:
 			}
 			if(j==0){
 				cov(0,0) = sqrt(sum/data.size());
-				if(cov(0,0) < 0.2)
-					cov(0,0) = 0.2;
+				if(cov(0,0) < 0.1)
+					cov(0,0) = 0.1;
 			}else{
 				cov(1,1) = sqrt(sum/data.size());
-				if(cov(1,1) < 0.2)
-					cov(1,1) = 0.2;
+				if(cov(1,1) < 0.1)
+					cov(1,1) = 0.1;
 			}
 		}
 	}
@@ -130,7 +130,7 @@ double densityMultiNormal(Data &d, Cluster &c)
 	return a*exp(exp_part);
 }
 
-void resampling(DataSet *ds, Clusters *cs, Data *d)
+bool resampling(DataSet *ds, Clusters *cs, Data *d)
 {
 	d->target = true;
 	//どのクラスタに標本が幾つかる数える
@@ -143,7 +143,7 @@ void resampling(DataSet *ds, Clusters *cs, Data *d)
 
 	int candidate_cluster = pickCandidateCluster(bincount);
 	if(candidate_cluster == d->cluster_id)
-		return;
+		return false;
 	
 	Cluster *old_cluster = &(cs->c[d->cluster_id]);
 	double eval_new = 0.0;
@@ -163,27 +163,31 @@ void resampling(DataSet *ds, Clusters *cs, Data *d)
 */
 	}
 
+	double acceptance = eval_new/eval_old;
 /*
 	if(cs->c[d->cluster_id].data.size() == 1)
-		cout << eval_old << " " << eval_new << endl;
+		cout << eval_old << " " << eval_new << " " << acceptance << endl;
 */
+	if(pd.uniformRand(0.0,1.0) >= acceptance)
+		return false;
 
-	double acceptance = eval_new/eval_old;
-	if(pd.uniformRand(0.0,1.0) < acceptance){
-		d->cluster_id = candidate_cluster;
-		if(candidate_cluster == (int)cs->c.size()){
-			c.mean.clear();
-			for(auto e : d->normalized_data)
-				c.mean.push_back(e);
-			cs->c.push_back(c);
-		}
+	d->cluster_id = candidate_cluster;
+	if(candidate_cluster == (int)cs->c.size()){
+		c.mean.clear();
+		for(auto e : d->normalized_data)
+			c.mean.push_back(e);
+		cs->c.push_back(c);
 	}
+	return false;
 }
 
 void sweep(DataSet *ds,Clusters *cs)
 {
+	int chance = 3;
 	for(auto &target : ds->x){
-		resampling(ds,cs,&target);
+		for(int i=0;i<chance;i++)
+			if(resampling(ds,cs,&target))
+				break;
 	}
 }
 
@@ -195,7 +199,6 @@ int main(int argc, char const* argv[])
 	ds.read();
 
 	int sweep_num = 100;
-	int chance = 3;
 
 	//最初のクラスタを作る。平均値は1軸ごとにガウス分布からサンプリング
 	cs.c.push_back(Cluster());
@@ -207,9 +210,7 @@ int main(int argc, char const* argv[])
 
 	for(int k=0;k<sweep_num;k++){
 		cout << "sweep " << k << endl;
-		for(int j=0;j<chance;j++){
-			sweep(&ds,&cs);
-		}
+		sweep(&ds,&cs);
 
 		//どのクラスタに標本が幾つかる数える
 		for(auto &c : cs.c){
