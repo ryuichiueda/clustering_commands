@@ -1,6 +1,7 @@
 #include <Eigen/Core>
 #include <Eigen/LU>
 #include <iostream>
+#include <iomanip>
 #include <vector>
 #include <cmath>
 #include <string>
@@ -60,13 +61,15 @@ public:
 			}
 			if(j==0){
 				cov(0,0) = sqrt(sum/data.size());
-				if(cov(0,0) < 0.1)
-					cov(0,0) = 0.1;
+				if(cov(0,0) < 0.01)
+					cov(0,0) = 0.01;
 			}else{
 				cov(1,1) = sqrt(sum/data.size());
-				if(cov(1,1) < 0.1)
-					cov(1,1) = 0.1;
+				if(cov(1,1) < 0.01)
+					cov(1,1) = 0.01;
 			}
+			cov(0,0) = 0.02;
+			cov(1,1) = 0.02;
 		}
 	}
 
@@ -75,6 +78,7 @@ public:
 		if(data.size() == 0)
 			return;
 
+		cout << setprecision(2);
 		cout << mean[0] << ',' << mean[1] << " cov: " << cov(0,0) << ',' << cov(1,1)
 		<< " num: " << data.size() << endl;
 	}
@@ -198,7 +202,7 @@ int main(int argc, char const* argv[])
 	DataSet ds;
 	ds.read();
 
-	int sweep_num = 100;
+	int sweep_num = 50;
 
 	//最初のクラスタを作る。平均値は1軸ごとにガウス分布からサンプリング
 	cs.c.push_back(Cluster());
