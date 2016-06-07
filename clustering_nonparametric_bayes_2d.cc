@@ -12,14 +12,14 @@
 #include "Cluster.h"
 using namespace std;
 
-int pickCandidateCluster(vector<int> &bincount,double d = 0.0)
+int pickCandidateCluster(vector<int> *bincount,double d = 0.0)
 {
 	vector<double> prob_list;
 	const double alpha = 0.8;
-	int n = accumulate(bincount.begin(),bincount.end(),0.0);
+	int n = accumulate(bincount->begin(),bincount->end(),0.0);
 	int n_k = 0;
 	int i = 0;
-	for(auto bin : bincount){
+	for(auto bin : *bincount){
 		n_k += bin;
 		prob_list.push_back(((double)n_k - d*(i+1))/(n + alpha));
 	}
@@ -49,21 +49,32 @@ double densityMultiNormal(Data &d, Cluster &c)
 	return a*exp(exp_part);
 }
 
-bool resampling(DataSet *ds, Clusters *cs, Data *d)
+bool resampling(DataSet *ds, Clusters *cs, Data *d, vector<int> &bin)
 {
 	int org_c_num = (int)cs->c.size();
-	d->target = true;
 	//どのクラスタに標本が幾つかる数える
+	/*
 	vector<int> bincount(cs->c.size(),0);
 	for(auto x : ds->x){
 		if(!x.target)	
 			bincount[x.cluster_id]++;
 	}
 	d->target = false;
+	*/
 	
-	int candidate_cluster = pickCandidateCluster(bincount);
-	if(candidate_cluster == d->cluster_id)
+	bin[d->cluster_id]--;
+/*
+	for(int i=0;i<bin.size();i++)
+		cout << "! " << bin[i] << " " << bincount[i] << endl;
+*/
+
+
+	int candidate_cluster = pickCandidateCluster(&bin);
+	bin[d->cluster_id]++;
+
+	if(candidate_cluster == d->cluster_id){
 		return false;
+	}
 	
 	Cluster *old_cluster = &(cs->c[d->cluster_id]);
 	double eval_new = 0.0;
@@ -79,19 +90,27 @@ bool resampling(DataSet *ds, Clusters *cs, Data *d)
 	if(pd.uniformRand(0.0,1.0) >= acceptance)
 		return false;
 
+	bin[d->cluster_id]--;
 	d->cluster_id = candidate_cluster;
 	if(candidate_cluster == org_c_num){
 		cs->c.push_back(c);
-	}
+		bin.push_back(1);
+	}else
+		bin[candidate_cluster]++;
 	return true;
 }
 
 void sweep(DataSet *ds,Clusters *cs)
 {
+	vector<int> bincount(cs->c.size(),0);
+	for(auto x : ds->x){
+		bincount[x.cluster_id]++;
+	}
+
 	int chance = 3;
 	for(auto &target : ds->x){
 		for(int i=0;i<chance;i++){
-			resampling(ds,cs,&target);
+			resampling(ds,cs,&target,bincount);
 		}
 	}
 	//どのクラスタに標本が幾つかる数える
