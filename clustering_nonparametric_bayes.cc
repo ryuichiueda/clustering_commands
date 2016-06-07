@@ -2,6 +2,7 @@
 #include <Eigen/LU>
 #include <iostream>
 #include <vector>
+#include <cmath>
 #include <string>
 #include <sstream>
 #include <random>
@@ -23,6 +24,7 @@ public:
 		mean.push_back(pd.uniformRand(0.0,1.0));
 		mean.push_back(pd.uniformRand(0.0,1.0));
 		cov = Eigen::MatrixXd(2,2);
+		cov << 0.5, 0.0, 0.0, 0.5;
 	}
 
 	void clear(void)
@@ -45,9 +47,26 @@ public:
 		mean.push_back(0.0);
 		for(int j=0;j<2;j++){
 			for(int i=0;i<data.size();i++){
-				mean[j] += data[i]->original_data[j];
+				mean[j] += data[i]->normalized_data[j];
 			}
 			mean[j] /= data.size();
+		}
+
+		for(int j=0;j<2;j++){
+			double sum = 0.0;
+			for(int i=0;i<data.size();i++){
+				double d = data[i]->normalized_data[j] - mean[j];
+				sum += d*d;
+			}
+			if(j==0){
+				cov(0,0) = sqrt(sum/data.size());
+				if(cov(0,0) < 0.2)
+					cov(0,0) = 0.2;
+			}else{
+				cov(1,1) = sqrt(sum/data.size());
+				if(cov(1,1) < 0.2)
+					cov(1,1) = 0.2;
+			}
 		}
 	}
 
@@ -56,7 +75,8 @@ public:
 		if(data.size() == 0)
 			return;
 
-		cout << mean[0] << ' ' << mean[1] << endl;
+		cout << mean[0] << ',' << mean[1] << " cov: " << cov(0,0) << ',' << cov(1,1)
+		<< " num: " << data.size() << endl;
 	}
 };
 
@@ -96,28 +116,22 @@ int pickCandidateCluster(vector<int> &bincount,double d = 0.0)
 	return candidate_cluster;
 }
 
-double logDensityMultiNormal(Data &d, Cluster &c, Eigen::MatrixXd &cov)
+double densityMultiNormal(Data &d, Cluster &c)
 {
-	Eigen::MatrixXd info = cov.inverse();
+	Eigen::MatrixXd info = c.cov.inverse();
 	Eigen::Vector2d x(d.normalized_data[0],d.normalized_data[1]); 
 	Eigen::Vector2d mu(c.mean[0],c.mean[1]); 
 	Eigen::Vector2d diff = x - mu;
 
-	double det = cov.determinant();
-	double a = 1.0/ 2 * 3.151592 *  sqrt(det);
+	double det = c.cov.determinant();
+	double a = 1.0/ (2 * 3.151592 *  sqrt(det));
 	double exp_part = -0.5 * diff.transpose() * info * diff;
 
-	return log(a) + exp_part;
+	return a*exp(exp_part);
 }
 
 void resampling(DataSet *ds, Clusters *cs, Data *d)
 {
-	Eigen::MatrixXd cov(2,2);
-	cov(0,0) = 0.2;
-	cov(0,1) = 0.0;
-	cov(1,0) = 0.0;
-	cov(1,1) = 0.2;
-
 	d->target = true;
 	//どのクラスタに標本が幾つかる数える
 	vector<int> bincount(cs->c.size(),0);
@@ -128,23 +142,33 @@ void resampling(DataSet *ds, Clusters *cs, Data *d)
 	d->target = false;
 
 	int candidate_cluster = pickCandidateCluster(bincount);
-	//int old_cluster = d->cluster_id;
 	if(candidate_cluster == d->cluster_id)
 		return;
 	
 	Cluster *old_cluster = &(cs->c[d->cluster_id]);
-	double log_new = 0.0;
-	double log_old = logDensityMultiNormal(*d,*old_cluster,cov);
+	double eval_new = 0.0;
+	double eval_old = densityMultiNormal(*d,*old_cluster);
 	Cluster c;
 	if(candidate_cluster == (int)cs->c.size()){//新しいクラスタ
-		log_new = logDensityMultiNormal(*d,c,cov);
+		eval_new = densityMultiNormal(*d,c);
 	}else{//既存のクラスタ
-		log_new = logDensityMultiNormal(*d,cs->c[candidate_cluster],cov);
+		eval_new = densityMultiNormal(*d,cs->c[candidate_cluster]);
+/*
+		if(cs->c[d->cluster_id].data.size() == 1){
+			cout << "old";
+			cs->c[d->cluster_id].print();
+			cout << "new";
+			cs->c[candidate_cluster].print();
+		}
+*/
 	}
 
-	double acceptance = exp(log_new - log_old);
-	//double acceptance = 1.0 < alpha ? 1.0 : alpha;
+/*
+	if(cs->c[d->cluster_id].data.size() == 1)
+		cout << eval_old << " " << eval_new << endl;
+*/
 
+	double acceptance = eval_new/eval_old;
 	if(pd.uniformRand(0.0,1.0) < acceptance){
 		d->cluster_id = candidate_cluster;
 		if(candidate_cluster == (int)cs->c.size()){
@@ -170,11 +194,16 @@ int main(int argc, char const* argv[])
 	DataSet ds;
 	ds.read();
 
-	int sweep_num = 3;
+	int sweep_num = 100;
 	int chance = 3;
 
 	//最初のクラスタを作る。平均値は1軸ごとにガウス分布からサンプリング
 	cs.c.push_back(Cluster());
+	for(auto &d : ds.x){
+		cs.c[d.cluster_id].regData(&d);
+	}
+	cs.calcParams();
+	cout << "----" << endl;
 
 	for(int k=0;k<sweep_num;k++){
 		cout << "sweep " << k << endl;
@@ -189,10 +218,8 @@ int main(int argc, char const* argv[])
 		for(auto &d : ds.x){
 			cs.c[d.cluster_id].regData(&d);
 		}
-		cout << "%%" << endl;
 		cs.calcParams();
 		cout << "----" << endl;
-		//ds.print();
 	}
 	
 	exit(0);
