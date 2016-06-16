@@ -10,7 +10,7 @@ void DataSet::print(void)
 		e.print();
 }
 
-bool DataSet::read(void)
+int DataSet::read(void)
 {
 	string line;
 	while(1){
@@ -32,7 +32,10 @@ bool DataSet::read(void)
 	}
 
 	int dim = (int)x[0].original_data.size();
-	for(int i=0;i<dim;i++){
+	for(Data &d : x)
+		d.normalized_data.resize(dim);
+
+	for(int i=0;i<dim;i++){//XXX: it should be normalized based on variances
 		double min = 1e100;
 		double max = -1e100;
 
@@ -45,8 +48,12 @@ bool DataSet::read(void)
 		if(max == min)
 			max += 1.0; // all values of data becomes the value of min
 		for(Data &d : x){
-			d.normalized_data.push_back((d.original_data[i]-min)/(max - min));
+			d.normalized_data(i) = (d.original_data[i]-min)/(max - min);
 		}
 	}
-	return true;
+	for(Data &d : x){
+		if(dim != (int)d.original_data.size())
+			return 0;
+	}
+	return dim;
 }

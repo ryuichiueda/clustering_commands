@@ -1,12 +1,5 @@
-CXX = g++
-TARGET = clustering_nonparametric_bayes_2d
-CXXFLAGS = -Wall -O3 --std=c++11 -I/usr/local/include/eigen3/
-LDFLAGS = -lm 
-SRCS := $(wildcard *.cc)
-OBJS := $(SRCS:.cc=.o)
-
-$(TARGET): $(OBJS)
-	$(CXX) -o $@ $(OBJS) 
+all:
+	cd clustering_nonparametric_bayes ; make
 
 clean:
-	rm -f $(TARGET) $(OBJS)
+	cd clustering_nonparametric_bayes ; make clean

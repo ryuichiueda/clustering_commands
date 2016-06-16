@@ -12,6 +12,8 @@
 #include "Cluster.h"
 using namespace std;
 
+int dim = 0;
+
 int pickCandidateCluster(vector<int> *bincount,double d = 0.0)
 {
 	vector<double> prob_list;
@@ -38,12 +40,11 @@ int pickCandidateCluster(vector<int> *bincount,double d = 0.0)
 double densityMultiNormal(Data &d, Cluster &c)
 {
 	Eigen::MatrixXd info = c.cov.inverse();
-	Eigen::Vector2d x(d.normalized_data[0],d.normalized_data[1]); 
-	Eigen::Vector2d mu(c.mean[0],c.mean[1]); 
-	Eigen::Vector2d diff = x - mu;
+	Eigen::VectorXd mu = c.mean;//[0],c.mean[1]); 
+	Eigen::VectorXd diff = d.normalized_data - mu;
 
 	double det = c.cov.determinant();
-	double a = 1.0/ (2 * 3.151592 *  sqrt(det));
+	double a = 1.0/ (pow(2 * 3.151592,c.dimension*0.5) *  sqrt(det));
 	double exp_part = -0.5 * diff.transpose() * info * diff;
 
 	return a*exp(exp_part);
@@ -52,23 +53,7 @@ double densityMultiNormal(Data &d, Cluster &c)
 bool resampling(DataSet *ds, Clusters *cs, Data *d, vector<int> &bin)
 {
 	int org_c_num = (int)cs->c.size();
-	//どのクラスタに標本が幾つかる数える
-	/*
-	vector<int> bincount(cs->c.size(),0);
-	for(auto x : ds->x){
-		if(!x.target)	
-			bincount[x.cluster_id]++;
-	}
-	d->target = false;
-	*/
-	
 	bin[d->cluster_id]--;
-/*
-	for(int i=0;i<bin.size();i++)
-		cout << "! " << bin[i] << " " << bincount[i] << endl;
-*/
-
-
 	int candidate_cluster = pickCandidateCluster(&bin);
 	bin[d->cluster_id]++;
 
@@ -79,7 +64,7 @@ bool resampling(DataSet *ds, Clusters *cs, Data *d, vector<int> &bin)
 	Cluster *old_cluster = &(cs->c[d->cluster_id]);
 	double eval_new = 0.0;
 	double eval_old = densityMultiNormal(*d,*old_cluster);
-	Cluster c;
+	Cluster c(dim);
 	if(candidate_cluster == org_c_num){//新しいクラスタ
 		eval_new = densityMultiNormal(*d,c);
 	}else{//既存のクラスタ
@@ -128,12 +113,14 @@ int main(int argc, char const* argv[])
 {
 	Clusters cs;
 	DataSet ds;
-	ds.read();
+	dim = ds.read();
+	if(dim <= 0)
+		exit(1);
 
 	int sweep_num = 50;
 
 	//最初のクラスタを作る。平均値は1軸ごとにガウス分布からサンプリング
-	cs.c.push_back(Cluster());
+	cs.c.push_back(Cluster(dim));
 	for(auto &d : ds.x){
 		cs.c[d.cluster_id].regData(&d);
 	}

@@ -8,7 +8,7 @@ class DataSet
 public:
 	vector<Data> x;
 	void print(void);
-	bool read(void);
+	int read(void);
 };
 
 #endif
